@@ -12,9 +12,6 @@ class Order(Base):
     card = Column(String, nullable=False)
 
     user_id = Column(Integer, ForeignKey("users.id"))
-
-    user = relationship("User", backref="orders")
-
     items = relationship("OrderItem", backref="order")
 
 
