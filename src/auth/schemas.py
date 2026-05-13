@@ -4,6 +4,7 @@ from pydantic import BaseModel, model_validator
 
 
 class UserRegisterSchema(BaseModel):
+    username: str
     email: str
     password: str
     password_2: str
@@ -15,7 +16,8 @@ class UserRegisterSchema(BaseModel):
         return self
 
 class UserSchema(BaseModel):
+    username: str
     email: str
     password: str
-    first_name: str
-    last_name: str
+    first_name: str | None = None
+    last_name: str | None = None

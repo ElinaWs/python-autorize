@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from authx import AuthX, AuthXConfig, TokenPayload
 
 from src.database import get_db
-from src.auth.models import User
+from src.models.user import User
 from src.auth.schemas import UserRegisterSchema
 
 
@@ -30,47 +30,49 @@ def create_user(
     user_data: UserRegisterSchema,    
     db: Session = Depends(get_db)
 ):
-    existing_user = db.query(User).filter(User.email == user_data.email).first()
+    existing_user = db.query(User).filter(User.username == user_data.username).first()
     if existing_user:
+        raise HTTPException(
+            status_code=400,
+            detail="Пользователь с таким логином уже существует"
+        )
+    
+    existing_email = db.query(User).filter(User.email == user_data.email).first()
+    if existing_email:
         raise HTTPException(
             status_code=400,
             detail="Пользователь с таким email уже существует"
         )
 
     new_user = User(
+        username=user_data.username,
         email=user_data.email,
         password=user_data.password,   
-        first_name="",          
-        last_name=""
     )
 
     db.add(new_user)
     db.commit()
     db.refresh(new_user)              
 
-    access_token = auth.create_access_token(uid=new_user.email)
-
     return {
-        "access_token": access_token,
-        "token_type": "bearer",
         "message": "Регистрация прошла успешно"
     }
 
 @user_router.post("/login")
 def login(
-    email: str,          
+    username: str,          
     password: str,
     db: Session = Depends(get_db)
 ):
-    user = db.query(User).filter(User.email == email).first()
+    user = db.query(User).filter(User.username == username).first()
 
     if not user or user.password != password:
         raise HTTPException(
             status_code=401,
-            detail="Неверный email или пароль"
+            detail="Неверный логин или пароль"
         )
 
-    access_token = auth.create_access_token(uid=user.email)
+    access_token = auth.create_access_token(uid=str(user.id))
 
     return {
         "access_token": access_token,
@@ -78,7 +80,34 @@ def login(
     }
 
 
+@user_router.post("/access")
+def get_refresh(
+    payload: TokenPayload = Depends(auth.access_token_required)
+):
+    refresh_token = auth.create_refresh_token(uid=payload.sub)
+    return {
+        "refresh_token": refresh_token,
+        "token_type": "bearer"
+    }
+
+
 @user_router.get("/protected")
-def protected(payload: TokenPayload = Depends(auth.access_token_required),
-              credentials = Depends(security)):
-    return {"message": payload.sub}
+def protected(
+    payload: TokenPayload = Depends(auth.refresh_token_required),
+    db: Session = Depends(get_db)
+):
+    user = db.query(User).filter(User.id == int(payload.sub)).first()
+    if not user:
+         raise HTTPException(
+            status_code=404,
+            detail="Пользователь не найден"
+        )
+    
+    return {
+        "message": f"Аккаунт найден: {user.username}",
+        "user_info": {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email
+        }
+    }

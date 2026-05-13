@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from src.database import get_db
-from src.products.models import Product
+from src.models.product import Product
 from src.products.schemas import ProductSchema, ProductCreateUpdateSchema
 
 
@@ -20,8 +20,8 @@ def get_products(db: Session = Depends(get_db)) ->List[ProductSchema]:
 
 @product_router.get("/{id}", response_model=ProductSchema)
 def get_product(id: int, db: Session = Depends(get_db)) -> ProductSchema:
-    product = db.query(Product).filter_by(id=id, is_available=True).first()
-    if product:
+    product = db.get(Product, id)
+    if product and product.is_available:
         return product
     raise HTTPException(status_code=404, detail="Product not found")
 
@@ -42,17 +42,19 @@ def update_product(
     product: ProductCreateUpdateSchema,
     db: Session = Depends(get_db)
 ) -> ProductSchema:
-    new_product = db.query(Product).get(id)
-    if new_product:
-        new_product.update(product.model_dump(exclude_unset=True), synchronize_session=False)
+    db_product = db.get(Product, id)
+    if db_product:
+        product_data = product.model_dump(exclude_unset=True)
+        for key, value in product_data.items():
+            setattr(db_product, key, value)
         db.commit()
-        db.refresh(new_product)
-        return new_product
+        db.refresh(db_product)
+        return db_product
     raise HTTPException(status_code=404, detail="Product not found")
 
 @product_router.delete("/{id}")
 def delete_product(id: int, db: Session = Depends(get_db)) -> dict:
-    product = db.query(Product).get(id)
+    product = db.get(Product, id)
     if product:
         db.delete(product)
         db.commit()
