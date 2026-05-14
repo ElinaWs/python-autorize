@@ -2,18 +2,18 @@ from fastapi import APIRouter
 
 from src.products.models import products
 
-router = APIRouter(
+product_router = APIRouter(
     prefix="/products",
     tags=["Products"]
 )
 
 
-@router.get("/")
+@product_router.get("/")
 def get_products():
     return products
 
 
-@router.get("/recommend/{skin_tone}")
+@product_router.get("/recommend/{skin_tone}")
 def recommend_products(skin_tone: str):
 
     recommended = []
