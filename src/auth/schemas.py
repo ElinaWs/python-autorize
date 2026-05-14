@@ -1,14 +1,25 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 
 
 class UserRegisterSchema(BaseModel):
     username: str
+    email: EmailStr
     password: str
+    full_name: str
+    role: str = "user"
 
 
 class UserLoginSchema(BaseModel):
-    username: str
+    login: str
     password: str
 
-class RefreshSchema(BaseModel):
-    refresh_token: str
+
+class UserOutSchema(BaseModel):
+    id: int
+    username: str
+    email: str
+    full_name: str
+    role: str
+
+    class Config:
+        from_attributes = True

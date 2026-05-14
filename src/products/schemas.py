@@ -1,17 +1,24 @@
 from pydantic import BaseModel
 
 
-class Shade(BaseModel):
-    name: str
-    hexColor: str
-    skinTone: str
+class ProductCreateSchema(BaseModel):
+    title: str
+    description: str | None = None
+    price: float
 
 
-class Product(BaseModel):
+class ProductUpdateSchema(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    price: float | None = None
+
+
+class ProductOutSchema(BaseModel):
     id: int
-    brand: str
-    name: str
-    category: str
-    price: int
-    description: str
-    shades: list[Shade]
+    title: str
+    description: str | None
+    price: float
+    owner_id: int
+
+    class Config:
+        from_attributes = True
