@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 from authx import TokenPayload
 
@@ -6,38 +7,55 @@ from src.database import get_db
 from src.models.product import Product
 from src.models.user import User
 from src.auth.router import auth
-from src.products.schemas import ProductCreateSchema, ProductUpdateSchema, ProductOutSchema
-from fastapi.security import HTTPBearer
 
-security = HTTPBearer()
+from src.products.schemas import (
+    ProductCreateSchema,
+    ProductUpdateSchema,
+    ProductOutSchema
+)
 
 product_router = APIRouter(
     prefix="/products",
     tags=["Products"],
 )
 
+security = HTTPBearer()
+
+
+# ---------------- GET ALL PRODUCTS ----------------
 
 @product_router.get("/", response_model=list[ProductOutSchema])
-def get_products(db: Session = Depends(get_db)):
+def get_products(
+    db: Session = Depends(get_db)
+):
     return db.query(Product).all()
 
+
+# ---------------- GET MY PRODUCTS ----------------
 
 @product_router.get("/my_products", response_model=list[ProductOutSchema])
 def get_my_products(
     payload: TokenPayload = Depends(auth.access_token_required),
+    credentials=Depends(security),
     db: Session = Depends(get_db)
 ):
-    return db.query(Product).filter(
+    products = db.query(Product).filter(
         Product.owner_id == int(payload.sub)
     ).all()
 
+    return products
+
+
+# ---------------- GET ONE PRODUCT ----------------
 
 @product_router.get("/{product_id}", response_model=ProductOutSchema)
 def get_product(
     product_id: int,
     db: Session = Depends(get_db)
 ):
-    product = db.query(Product).filter(Product.id == product_id).first()
+    product = db.query(Product).filter(
+        Product.id == product_id
+    ).first()
 
     if not product:
         raise HTTPException(
@@ -48,13 +66,18 @@ def get_product(
     return product
 
 
+# ---------------- CREATE PRODUCT ----------------
+
 @product_router.post("/", status_code=status.HTTP_201_CREATED)
 def create_product(
     product_data: ProductCreateSchema,
     payload: TokenPayload = Depends(auth.access_token_required),
+    credentials=Depends(security),
     db: Session = Depends(get_db)
 ):
-    user = db.query(User).filter(User.id == int(payload.sub)).first()
+    user = db.query(User).filter(
+        User.id == int(payload.sub)
+    ).first()
 
     if not user:
         raise HTTPException(
@@ -79,14 +102,19 @@ def create_product(
     }
 
 
+# ---------------- UPDATE PRODUCT ----------------
+
 @product_router.put("/{product_id}")
 def update_product(
     product_id: int,
     product_data: ProductUpdateSchema,
     payload: TokenPayload = Depends(auth.access_token_required),
+    credentials=Depends(security),
     db: Session = Depends(get_db)
 ):
-    product = db.query(Product).filter(Product.id == product_id).first()
+    product = db.query(Product).filter(
+        Product.id == product_id
+    ).first()
 
     if not product:
         raise HTTPException(
@@ -118,13 +146,18 @@ def update_product(
     }
 
 
+# ---------------- DELETE PRODUCT ----------------
+
 @product_router.delete("/{product_id}")
 def delete_product(
     product_id: int,
     payload: TokenPayload = Depends(auth.access_token_required),
+    credentials=Depends(security),
     db: Session = Depends(get_db)
 ):
-    product = db.query(Product).filter(Product.id == product_id).first()
+    product = db.query(Product).filter(
+        Product.id == product_id
+    ).first()
 
     if not product:
         raise HTTPException(
@@ -141,4 +174,6 @@ def delete_product(
     db.delete(product)
     db.commit()
 
-    return {"message": "Продукт удален"}
+    return {
+        "message": "Продукт удален"
+    }
