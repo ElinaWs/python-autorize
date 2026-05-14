@@ -1,23 +1,14 @@
-from datetime import datetime
-
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel
 
 
 class UserRegisterSchema(BaseModel):
     username: str
-    email: str
     password: str
-    password_2: str
 
-    @model_validator(mode='after')
-    def check_passwords_match(self):
-        if self.password != self.password_2:
-            raise ValueError('Passwords do not match')
-        return self
 
-class UserSchema(BaseModel):
+class UserLoginSchema(BaseModel):
     username: str
-    email: str
     password: str
-    first_name: str | None = None
-    last_name: str | None = None
+
+class RefreshSchema(BaseModel):
+    refresh_token: str

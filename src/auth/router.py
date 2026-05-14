@@ -1,15 +1,13 @@
-from datetime import datetime
-from typing import List
-
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 from authx import AuthX, AuthXConfig, TokenPayload
 
 from src.database import get_db
 from src.models.user import User
-from src.auth.schemas import UserRegisterSchema
+from src.auth.schemas import UserRegisterSchema, UserLoginSchema, RefreshSchema
 
+security = HTTPBearer(auto_error=False)
 
 config = AuthXConfig(
     JWT_SECRET_KEY="test-secret-key",
@@ -17,7 +15,6 @@ config = AuthXConfig(
 )
 
 auth = AuthX(config=config)
-security = HTTPBearer()
 
 user_router = APIRouter(
     prefix="/users",
@@ -25,89 +22,113 @@ user_router = APIRouter(
 )
 
 
+# ---------------- REGISTER ----------------
+
 @user_router.post("/register", status_code=status.HTTP_201_CREATED)
 def create_user(
-    user_data: UserRegisterSchema,    
+    user_data: UserRegisterSchema,
     db: Session = Depends(get_db)
 ):
-    existing_user = db.query(User).filter(User.username == user_data.username).first()
+    existing_user = db.query(User).filter(
+        User.username == user_data.username
+    ).first()
+
     if existing_user:
         raise HTTPException(
             status_code=400,
             detail="Пользователь с таким логином уже существует"
         )
-    
-    existing_email = db.query(User).filter(User.email == user_data.email).first()
-    if existing_email:
-        raise HTTPException(
-            status_code=400,
-            detail="Пользователь с таким email уже существует"
-        )
 
     new_user = User(
         username=user_data.username,
-        email=user_data.email,
-        password=user_data.password,   
+        password=user_data.password,
     )
 
     db.add(new_user)
     db.commit()
-    db.refresh(new_user)              
+    db.refresh(new_user)
 
     return {
         "message": "Регистрация прошла успешно"
     }
 
+
+# ---------------- LOGIN ----------------
+
 @user_router.post("/login")
 def login(
-    username: str,          
-    password: str,
+    user_data: UserLoginSchema,
     db: Session = Depends(get_db)
 ):
-    user = db.query(User).filter(User.username == username).first()
+    user = db.query(User).filter(
+        User.username == user_data.username
+    ).first()
 
-    if not user or user.password != password:
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Неверный логин или пароль"
+        )
+
+    if user.password != user_data.password:
         raise HTTPException(
             status_code=401,
             detail="Неверный логин или пароль"
         )
 
     access_token = auth.create_access_token(uid=str(user.id))
+    refresh_token = auth.create_refresh_token(uid=str(user.id))
 
     return {
         "access_token": access_token,
-        "token_type": "bearer"
-    }
-
-
-@user_router.post("/access")
-def get_refresh(
-    payload: TokenPayload = Depends(auth.access_token_required)
-):
-    refresh_token = auth.create_refresh_token(uid=payload.sub)
-    return {
         "refresh_token": refresh_token,
         "token_type": "bearer"
     }
 
 
+# ---------------- REFRESH ----------------
+
+@user_router.post("/refresh")
+def refresh(user_data: RefreshSchema):
+    try:
+        payload = auth.verify_token(user_data.refresh_token)
+    except Exception:
+        raise HTTPException(
+            status_code=401,
+            detail="Неверный refresh token"
+        )
+
+    new_access_token = auth.create_access_token(uid=payload.sub)
+
+    return {
+        "access_token": new_access_token,
+        "token_type": "bearer"
+    }
+
+
+# ---------------- PROTECTED ----------------
+
 @user_router.get("/protected")
 def protected(
-    payload: TokenPayload = Depends(auth.refresh_token_required),
+    payload: TokenPayload = Depends(auth.access_token_required),
+    credentials=Depends(security),
     db: Session = Depends(get_db)
 ):
-    user = db.query(User).filter(User.id == int(payload.sub)).first()
+    user = db.query(User).filter(
+        User.id == int(payload.sub)
+    ).first()
+
     if not user:
-         raise HTTPException(
+        raise HTTPException(
             status_code=404,
             detail="Пользователь не найден"
         )
-    
+
     return {
         "message": f"Аккаунт найден: {user.username}",
+        "token": credentials.credentials,
         "user_info": {
             "id": user.id,
-            "username": user.username,
-            "email": user.email
+            "username": user.username
         }
     }
