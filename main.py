@@ -5,6 +5,8 @@ import uvicorn
 from src.database import Base, engine
 from src.products.router import product_router
 from src.auth.router import user_router, auth
+from src.products.router import router as products_router
+app.include_router(products_router)
 
 # from src.models.user import User
 # from src.models.product import Product

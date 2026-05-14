@@ -1,13 +1,17 @@
-from datetime import datetime
-
 from pydantic import BaseModel
 
 
-class ProductCreateUpdateSchema(BaseModel):
+class Shade(BaseModel):
     name: str
-    price: float
+    hexColor: str
+    skinTone: str
 
 
-class ProductSchema(ProductCreateUpdateSchema):
+class Product(BaseModel):
     id: int
-    created_at: datetime | None = None
+    brand: str
+    name: str
+    category: str
+    price: int
+    description: str
+    shades: list[Shade]
